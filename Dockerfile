@@ -4,11 +4,12 @@ FROM node:18-alpine
 # Set working directory
 WORKDIR /app
 
-# Copy package files
+# Copy package files (termasuk package-lock.json)
 COPY package*.json ./
+COPY package-lock.json ./
 
-# Install dependencies (gunakan npm install, bukan npm ci)
-RUN npm install --omit=dev
+# Install dependencies with npm ci
+RUN npm ci --omit=dev
 
 # Copy source code
 COPY . .
