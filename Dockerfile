@@ -1,18 +1,27 @@
-# Use Node.js LTS version
-FROM node:18-alpine
+# Stage 1: Build
+FROM node:18-alpine AS builder
 
-# Set working directory
 WORKDIR /app
 
-# Copy package files (termasuk package-lock.json)
+# Copy package files
 COPY package*.json ./
 COPY package-lock.json ./
 
-# Install dependencies with npm ci
-RUN npm ci --omit=dev
+# Install dependencies
+RUN npm install --omit=dev
 
 # Copy source code
 COPY . .
+
+# Stage 2: Production
+FROM node:18-alpine
+
+WORKDIR /app
+
+# Copy from builder
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/package*.json ./
+COPY --from=builder /app ./
 
 # Create necessary directories
 RUN mkdir -p logs uploads
