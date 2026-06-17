@@ -1,0 +1,921 @@
+openapi: 3.0.0
+info:
+  title: Device Management System API
+  description: API documentation for Device Management and Monitoring System
+  version: 1.0.0
+  contact:
+    name: Support
+    email: support@device-management.com
+
+servers:
+  - url: http://localhost:3001/api
+    description: Development server
+  - url: https://api.device-management.com/api
+    description: Production server
+
+tags:
+  - name: Auth
+    description: Authentication endpoints
+  - name: Devices
+    description: Device management endpoints
+  - name: Monitoring
+    description: Device monitoring endpoints
+  - name: Admin
+    description: Administration endpoints
+  - name: Dashboard
+    description: Dashboard statistics endpoints
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+          example: 507f1f77bcf86cd799439011
+        name:
+          type: string
+          example: John Doe
+        email:
+          type: string
+          example: john@example.com
+        role:
+          type: string
+          enum: [admin, reseller, user]
+          example: user
+        status:
+          type: string
+          enum: [active, suspended, pending]
+          example: active
+        license:
+          type: object
+          properties:
+            type:
+              type: string
+              enum: [reseller, user_1year, user_30days]
+            expiryDate:
+              type: string
+              format: date-time
+            isActive:
+              type: boolean
+        deviceLimit:
+          type: integer
+          example: 5
+        createdAt:
+          type: string
+          format: date-time
+
+    Device:
+      type: object
+      properties:
+        id:
+          type: string
+        deviceId:
+          type: string
+          example: DEV-12345-ABCDE
+        name:
+          type: string
+          example: My Phone
+        userId:
+          type: string
+        status:
+          type: string
+          enum: [online, offline, lost, maintenance]
+        type:
+          type: string
+          enum: [android, ios, windows, macos, web]
+        model:
+          type: string
+          example: iPhone 13 Pro
+        manufacturer:
+          type: string
+          example: Apple
+        osVersion:
+          type: string
+          example: 16.0
+        lastSeen:
+          type: string
+          format: date-time
+        battery:
+          type: object
+          properties:
+            level:
+              type: integer
+              example: 85
+            isCharging:
+              type: boolean
+        location:
+          type: object
+          properties:
+            coordinates:
+              type: array
+              items:
+                type: number
+              example: [106.8456, -6.2088]
+            address:
+              type: string
+        lostMode:
+          type: object
+          properties:
+            active:
+              type: boolean
+            message:
+              type: string
+            contactInfo:
+              type: string
+
+    ActivityLog:
+      type: object
+      properties:
+        id:
+          type: string
+        userId:
+          type: string
+        deviceId:
+          type: string
+        action:
+          type: string
+          enum: [login, logout, device_register, device_update, device_lock, device_unlock, lost_mode_activate, data_sync, data_backup, user_create, user_update, user_delete, user_suspend, license_update, pin_create, settings_update]
+        details:
+          type: object
+        status:
+          type: string
+          enum: [success, failure]
+        timestamp:
+          type: string
+          format: date-time
+
+    ApiResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          type: object
+        error:
+          type: string
+
+  parameters:
+    pageParam:
+      in: query
+      name: page
+      schema:
+        type: integer
+        default: 1
+      description: Page number
+    limitParam:
+      in: query
+      name: limit
+      schema:
+        type: integer
+        default: 50
+      description: Items per page
+
+# Security
+security:
+  - bearerAuth: []
+
+paths:
+  # Auth endpoints
+  /auth/register:
+    post:
+      tags: [Auth]
+      summary: Register new user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+                - email
+                - password
+              properties:
+                name:
+                  type: string
+                email:
+                  type: string
+                password:
+                  type: string
+                  minLength: 6
+                role:
+                  type: string
+                  enum: [admin, reseller, user]
+                licenseType:
+                  type: string
+                  enum: [reseller, user_1year, user_30days]
+      responses:
+        201:
+          description: User registered successfully
+        409:
+          description: User already exists
+
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Login user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+                - password
+              properties:
+                email:
+                  type: string
+                password:
+                  type: string
+      responses:
+        200:
+          description: Login successful
+        401:
+          description: Invalid credentials
+
+  /auth/verify-pin:
+    post:
+      tags: [Auth]
+      summary: Verify enrollment PIN
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - pin
+              properties:
+                pin:
+                  type: string
+                deviceId:
+                  type: string
+      responses:
+        200:
+          description: PIN verified successfully
+        401:
+          description: Invalid PIN
+
+  /auth/refresh:
+    post:
+      tags: [Auth]
+      summary: Refresh authentication token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - refreshToken
+              properties:
+                refreshToken:
+                  type: string
+      responses:
+        200:
+          description: Token refreshed successfully
+
+  # Device endpoints
+  /devices:
+    get:
+      tags: [Devices]
+      summary: Get all devices
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/pageParam'
+        - $ref: '#/components/parameters/limitParam'
+      responses:
+        200:
+          description: List of devices
+
+    post:
+      tags: [Devices]
+      summary: Register new device
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - deviceId
+              properties:
+                deviceId:
+                  type: string
+                name:
+                  type: string
+                type:
+                  type: string
+                  enum: [android, ios, windows, macos, web]
+                model:
+                  type: string
+                manufacturer:
+                  type: string
+                osVersion:
+                  type: string
+                appVersion:
+                  type: string
+      responses:
+        201:
+          description: Device registered successfully
+
+  /devices/{id}:
+    get:
+      tags: [Devices]
+      summary: Get device by ID
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        200:
+          description: Device details
+        404:
+          description: Device not found
+
+    put:
+      tags: [Devices]
+      summary: Update device
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                model:
+                  type: string
+                manufacturer:
+                  type: string
+                osVersion:
+                  type: string
+                appVersion:
+                  type: string
+                settings:
+                  type: object
+                permissions:
+                  type: object
+      responses:
+        200:
+          description: Device updated successfully
+
+    delete:
+      tags: [Devices]
+      summary: Delete device
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        200:
+          description: Device deleted successfully
+
+  /devices/{id}/lock:
+    post:
+      tags: [Devices]
+      summary: Lock device
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        200:
+          description: Device locked successfully
+
+  /devices/{id}/unlock:
+    post:
+      tags: [Devices]
+      summary: Unlock device
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        200:
+          description: Device unlocked successfully
+
+  /devices/{id}/lost-mode:
+    post:
+      tags: [Devices]
+      summary: Activate lost mode
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                message:
+                  type: string
+                contactInfo:
+                  type: string
+      responses:
+        200:
+          description: Lost mode activated
+
+    delete:
+      tags: [Devices]
+      summary: Deactivate lost mode
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        200:
+          description: Lost mode deactivated
+
+  # Admin endpoints
+  /admin/users:
+    get:
+      tags: [Admin]
+      summary: Get all users
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/pageParam'
+        - $ref: '#/components/parameters/limitParam'
+        - in: query
+          name: search
+          schema:
+            type: string
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [active, suspended, pending]
+        - in: query
+          name: role
+          schema:
+            type: string
+            enum: [admin, reseller, user]
+      responses:
+        200:
+          description: List of users
+
+    post:
+      tags: [Admin]
+      summary: Create new user
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+                - email
+                - password
+              properties:
+                name:
+                  type: string
+                email:
+                  type: string
+                password:
+                  type: string
+                  minLength: 6
+                role:
+                  type: string
+                  enum: [admin, reseller, user]
+                licenseType:
+                  type: string
+                  enum: [reseller, user_1year, user_30days]
+      responses:
+        201:
+          description: User created successfully
+
+  /admin/users/{id}:
+    put:
+      tags: [Admin]
+      summary: Update user
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                role:
+                  type: string
+                  enum: [admin, reseller, user]
+                status:
+                  type: string
+                  enum: [active, suspended]
+                deviceLimit:
+                  type: integer
+                license:
+                  type: object
+                  properties:
+                    type:
+                      type: string
+                      enum: [reseller, user_1year, user_30days]
+                    isActive:
+                      type: boolean
+      responses:
+        200:
+          description: User updated successfully
+
+    delete:
+      tags: [Admin]
+      summary: Delete user
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        200:
+          description: User deleted successfully
+
+  /admin/users/{id}/suspend:
+    post:
+      tags: [Admin]
+      summary: Suspend user
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason:
+                  type: string
+      responses:
+        200:
+          description: User suspended successfully
+
+  /admin/users/{id}/activate:
+    post:
+      tags: [Admin]
+      summary: Activate user
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        200:
+          description: User activated successfully
+
+  /admin/licenses:
+    get:
+      tags: [Admin]
+      summary: Get all licenses
+      security:
+        - bearerAuth: []
+      responses:
+        200:
+          description: List of licenses
+
+    post:
+      tags: [Admin]
+      summary: Create license
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - userId
+                - type
+                - durationDays
+              properties:
+                userId:
+                  type: string
+                type:
+                  type: string
+                  enum: [reseller, user_1year, user_30days]
+                durationDays:
+                  type: integer
+      responses:
+        201:
+          description: License created successfully
+
+  /admin/enrollment-pins:
+    get:
+      tags: [Admin]
+      summary: Get enrollment pins
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: userId
+          schema:
+            type: string
+      responses:
+        200:
+          description: List of enrollment pins
+
+    post:
+      tags: [Admin]
+      summary: Create enrollment PIN
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - userId
+              properties:
+                userId:
+                  type: string
+                description:
+                  type: string
+      responses:
+        201:
+          description: Enrollment PIN created successfully
+
+  /admin/enrollment-pins/{id}/revoke:
+    post:
+      tags: [Admin]
+      summary: Revoke enrollment PIN
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        200:
+          description: PIN revoked successfully
+
+  /admin/audit-logs:
+    get:
+      tags: [Admin]
+      summary: Get audit logs
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/pageParam'
+        - $ref: '#/components/parameters/limitParam'
+        - in: query
+          name: userId
+          schema:
+            type: string
+        - in: query
+          name: deviceId
+          schema:
+            type: string
+        - in: query
+          name: action
+          schema:
+            type: string
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [success, failure]
+        - in: query
+          name: startDate
+          schema:
+            type: string
+            format: date-time
+        - in: query
+          name: endDate
+          schema:
+            type: string
+            format: date-time
+      responses:
+        200:
+          description: List of audit logs
+
+  /admin/settings:
+    get:
+      tags: [Admin]
+      summary: Get system settings
+      security:
+        - bearerAuth: []
+      responses:
+        200:
+          description: System settings
+
+    put:
+      tags: [Admin]
+      summary: Update system settings
+      security:
+        - bearerAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                maintenance:
+                  type: boolean
+                maintenanceMessage:
+                  type: string
+                registrationEnabled:
+                  type: boolean
+                maxDevicesPerUser:
+                  type: integer
+                sessionTimeout:
+                  type: integer
+                backupEnabled:
+                  type: boolean
+                backupInterval:
+                  type: integer
+                encryptionEnabled:
+                  type: boolean
+                auditLogEnabled:
+                  type: boolean
+                emailNotifications:
+                  type: boolean
+                pushNotifications:
+                  type: boolean
+      responses:
+        200:
+          description: Settings updated successfully
+
+  # Dashboard endpoints
+  /dashboard/stats:
+    get:
+      tags: [Dashboard]
+      summary: Get dashboard statistics
+      security:
+        - bearerAuth: []
+      responses:
+        200:
+          description: Dashboard statistics
+
+  /dashboard/activity:
+    get:
+      tags: [Dashboard]
+      summary: Get recent activity
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 10
+      responses:
+        200:
+          description: Recent activity
+
+  # Monitoring endpoints
+  /monitoring/camera/{deviceId}:
+    get:
+      tags: [Monitoring]
+      summary: Access device camera
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: deviceId
+          required: true
+          schema:
+            type: string
+      responses:
+        200:
+          description: Camera feed URL
+
+  /monitoring/screen/{deviceId}:
+    get:
+      tags: [Monitoring]
+      summary: Access device screen
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: deviceId
+          required: true
+          schema:
+            type: string
+      responses:
+        200:
+          description: Screen capture data
+
+  /monitoring/sms/{deviceId}:
+    get:
+      tags: [Monitoring]
+      summary: Get SMS history
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: deviceId
+          required: true
+          schema:
+            type: string
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 50
+      responses:
+        200:
+          description: SMS history
+
+  /monitoring/gallery/{deviceId}:
+    get:
+      tags: [Monitoring]
+      summary: Get device gallery
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: deviceId
+          required: true
+          schema:
+            type: string
+        - in: query
+          name: type
+          schema:
+            type: string
+            enum: [image, video, all]
+            default: all
+      responses:
+        200:
+          description: Gallery files
+
+  # Health check
+  /health:
+    get:
+      tags: [System]
+      summary: Health check
+      responses:
+        200:
+          description: System status
