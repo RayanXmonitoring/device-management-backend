@@ -7,8 +7,8 @@ WORKDIR /app
 # Copy package files
 COPY package*.json ./
 
-# Install dependencies
-RUN npm install --omit=dev
+# Install dependencies (hanya sekali)
+RUN npm ci --only=production
 
 # Copy source code
 COPY . .
@@ -23,5 +23,5 @@ ENV PORT=3001
 # Expose port
 EXPOSE 3001
 
-# Start the application
+# Start the application (tanpa build atau postinstall)
 CMD ["npm", "start"]
